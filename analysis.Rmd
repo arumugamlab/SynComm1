@@ -1,0 +1,750 @@
+---
+title: "analaysis"
+author: "Arjun Sarathi"
+date: "10/20/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = FALSE)
+```
+
+## Analysis of Phyloseq Object
+
+
+### Load Required Libraries
+
+```{r libraryLoad, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+library("dada2")
+library("devtools")
+library("dplyr")
+library("ggplot2")
+library('ggrepel')
+library('ggpubr')
+library("microbiome")
+library("phyloseq")
+library("Rcpp")
+library("reshape2")
+library("tidyr")
+library("vegan")
+library("gtools")
+library("DECIPHER")
+```
+
+### Comparison of Inoculum with real-world Microbiome
+
+We first look at how our Theoretical Equal and Fecal Microbiomes compare with 
+```{r Fig1}
+newplotpcoa = allsamwAvg
+
+colnames(newplotpcoa)[5085] = 'Fec'
+colnames(newplotpcoa)[5086] = 'Eq'
+
+pseq_count_new = phyloseq(otu_table(newplotpcoa[,-which(colSums(newplotpcoa)==0)],taxa_are_rows = T))
+count_plot_new = transform_sample_counts(pseq_count_new,function(otu) otu/sum(otu))
+count_ord_new = (phyloseq::distance(count_plot_new,type = 'samples','bray'))
+
+count_pcoa_new = ordinate(count_plot_new,'PCoA',distance = count_ord_new)
+#plot_ordination(count_plot_new,count_pcoa_new)
+
+Axis1_lab = 'Axis 1 : 12%'
+Axis2_lab = 'Axis 2 : 10.7%'
+
+
+```
+
+```{r Fig1contd}
+Axis1_lab = 'PCo1 [12%]'
+Axis2_lab = 'PCo2 [10.7%]'
+
+ordplot_obj_new = data.frame(count_pcoa_new$vectors[,1:2],rownames(count_pcoa_new$vectors))
+colnames(ordplot_obj_new) = c('Axis1','Axis2','labels')
+
+#FIG 1 without any annotations
+ordplot_obj_new$type = 'AcSamp'
+
+ordplot_obj_new$type1 = 1/10
+
+ordplot_obj_new[rownames(ordplot_obj_new)[5083:5107],'type'] = 'SHIME'
+
+ordplot_obj_new[c('Fec','Eq'),'type1'] = 1
+
+
+ordplot_obj_new$size= 1
+
+ordplot_obj_new[c('Fec','Eq'),'size'] = 3
+
+ordplot_obj_new$col= 'black'
+
+ordplot_obj_new['Fec','col'] = 'brown'
+ordplot_obj_new['Eq','col'] = 'blue'
+
+
+
+ggplot(ordplot_obj_new,aes(x = Axis1, y = Axis2, alpha = type1,size = size,color = col)) + 
+  geom_point() +
+  geom_text_repel(data=subset(ordplot_obj_new, type == 'SHIME'),aes(Axis1,Axis2,label=labels,alpha = 1, size = 2),max.overlaps = 100)+
+  scale_colour_manual(values = c("black","blue",'brown')) +
+  theme_pubr(border = TRUE) +
+  xlab(Axis1_lab) +
+  ylab(Axis2_lab)
+
+```
+
+### We now compare the sequenced standards to their known composition
+
+```{r Fig3}
+
+#Theoretical Standard Compositions
+stdOrgs = c("Listeria monocytogenes","Pseudomonas aeruginosa","Escherichia coli","Salmonella enterica","Lactobacillus fermentum","Enterococcus faecalis","Staphylococcus aureus","Bacillus subtilis")
+stdTheo = data.frame(stdOrgs,0,0)
+colnames(stdTheo) = c("Bacteria","Std1","Std2")
+rownames(stdTheo) = stdTheo$stdOrgs
+
+
+stdTheo['Pseudomonas aeruginosa',"Std1"] = "0.042"
+stdTheo['Escherichia coli',"Std1"] = "0.101"
+stdTheo['Salmonella enterica',"Std1"] = "0.104"
+stdTheo['Lactobacillus fermentum',"Std1"] = "0.184"
+stdTheo['Enterococcus faecalis',"Std1"] = "0.099"
+stdTheo['Staphylococcus aureus',"Std1"] = "0.155"
+stdTheo['Listeria monocytogenes',"Std1"] = "0.141"
+stdTheo['Bacillus subtilis',"Std1"] = "0.174"
+
+stdTheo$Std1 = as.double(stdTheo$Std1)
+
+stdTheo['Pseudomonas aeruginosa',"Std2"] = 0.028
+stdTheo['Escherichia coli',"Std2"] = 0.00069
+stdTheo['Salmonella enterica',"Std2"] = 0.0007
+stdTheo['Lactobacillus fermentum',"Std2"] = 0.00012
+stdTheo['Enterococcus faecalis',"Std2"] = 0.0000067
+stdTheo['Staphylococcus aureus',"Std2"] = 0.000001
+stdTheo['Listeria monocytogenes',"Std2"] = 0.959
+stdTheo['Bacillus subtilis',"Std2"] = 0.012
+
+
+#Standard level abundances from sequencing
+
+otu.relative = abundances(pseq,'compositional')
+
+otu_std = otu.relative[,c('Final.119','Final.120')]
+
+
+ASVs_0_stds = which(rowSums(otu_std)==0)
+
+otu_std_postfilt = otu_std[-ASVs_0_stds,]
+otu_std_postfilt = data.frame(taxa_new[rownames(otu_std_postfilt),"FinalAssign"],otu_std_postfilt)
+colnames(otu_std_postfilt) = c("OrgName",'Std1','Std2')
+
+#Rename Orgnames based on what we know
+otu_std_postfilt['Seq13',"OrgName"] = "Enterococcus faecalis"
+otu_std_postfilt['Seq14',"OrgName"] = "Salmonella enterica"
+otu_std_postfilt['Seq17',"OrgName"] = "Listeria monocytogenes"
+otu_std_postfilt['Seq33',"OrgName"] = "Bacillus subtilis"
+otu_std_postfilt['Seq38',"OrgName"] = "Staphylococcus aureus"
+otu_std_postfilt['Seq55',"OrgName"] = "Pseudomonas aeruginosa"
+otu_std_postfilt['Seq11',"OrgName"] = "Escherichia coli"
+otu_std_postfilt['Seq48',"OrgName"] = "Lactobacillus fermentum"
+
+#dealing with NAs
+otu_std_postfilt['Seq52',"OrgName"] = "Family Paenibacillaceae"
+#From BLAST closest hit
+otu_std_postfilt['Seq219',"OrgName"] = "Carnobacterium sp."
+
+#Start plotting
+std1_Theo = stdTheo[,c('Bacteria','Std1')]
+std1_Obs = otu_std_postfilt[,c('OrgName','Std1')]
+
+std1_plot_df = data.frame(std1_Obs,0)
+
+rownames(std1_plot_df) = std1_plot_df$OrgName
+
+colnames(std1_plot_df) = c("bact","Observed","Theoretical")
+
+std1_plot_df[rownames(std1_Theo),"Theoretical"] = std1_Theo[rownames(std1_Theo),'Std1']
+
+std1_plot_df = std1_plot_df[-intersect(which(std1_plot_df$Theoretical == 0),which(std1_plot_df$Observed == 0)),]
+
+
+
+
+
+#Start plotting
+std2_Theo = stdTheo[,c('Bacteria','Std2')]
+std2_Obs = otu_std_postfilt[,c('OrgName','Std2')]
+
+std2_plot_df = data.frame(std2_Obs,0)
+
+rownames(std2_plot_df) = std2_plot_df$OrgName
+
+colnames(std2_plot_df) = c("bact","Observed","Theoretical")
+
+std2_plot_df[rownames(std2_Theo),"Theoretical"] = std2_Theo[rownames(std2_Theo),'Std2']
+
+std2_plot_df = std2_plot_df[-intersect(which(std2_plot_df$Theoretical == 0),which(std2_plot_df$Observed == 0)),]
+
+std1_plot_df["Family Paenibacillaceae",'bact'] = 'Paenibacillaceae sp.'
+std1_plot_df["Tepidimonas arfidensis/fonticaldi",'bact'] = 'Tepidimonas sp.'
+std1_plot_df["Brevibacillus brevis/thermoruber",'bact'] = 'Brevibacillus sp.'
+
+std1_plot_df["Micrococcus alkanovora/aloeverae/antarcticus/cohnii/endophyticus/flavus/indicus/luteus/lylae/thailandicus/yunnanensis",'bact'] = 'Micrococcus sp.'
+
+```
+
+```{r StadClean, fig.asp=2, fig.width=4in, message=FALSE, warning=FALSE}
+
+std1Plot = ggplot(std1_plot_df,aes(x = Theoretical,y = Observed, label = bact)) + 
+  geom_point(size = 0.5) + geom_text_repel(size = 1.85,segment.size = 0.1) + geom_abline(slope = 1,linetype = 'dotted',size =0.2) +
+  #scale_x_continuous(trans='log2') + scale_y_continuous(trans='log2') +
+  ggtitle('A) Standard I') + xlim(0,0.27) + ylim(0,0.27) + coord_fixed() + theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 0.3, fill = NA),plot.title = element_text(size = 10, face = "bold"),axis.text=element_text(size=7),axis.title=element_text(size=8))
+
+std2Plot = ggplot(std2_plot_df,aes(x = Theoretical,y = Observed, label = bact)) + 
+  geom_point(size = 0.5) + geom_text_repel(size = 1.85,segment.size =0.1) + geom_abline(slope = 1,linetype = 'dotted',size=0.2) +
+  scale_x_log10(limits=c(0.00001,0.99),label = scientific_10) + scale_y_log10(limits=c(0.00001,0.99),label = scientific_10) +
+  ggtitle('B) Standard II (Log Distribution)') + coord_fixed()+ theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 0.3, fill = NA),plot.title = element_text(size = 10, face = "bold"),axis.text=element_text(size=7),axis.title=element_text(size=8))
+
+
+
+#ggarrange(std1Plot,std2Plot)
+
+ggsave('std.pdf',ggarrange(std1Plot,std2Plot),width = 15,height = 7.5,units = 'cm')
+```
+
+
+```{r Filter low abundant stuff}
+
+
+#
+pseq_A_prime = pseq_A
+
+
+otu.relative = abundances(pseq_A_prime,'compositional')
+
+#DECONTAM - Do they get the same ASVs?
+library(decontam)
+
+
+contamdf.prev_A_prime <- isContaminant(pseq_A_prime, method="prevalence", neg="is.neg")
+contam_Aprime = rownames(contamdf.prev_A_prime)[which(contamdf.prev_A_prime$contaminant == FALSE)]
+contam_Aprime_posnums = otu.bin[contam_Aprime,setdiff(colnames(otu.bin),controlNeg)]
+contam_Aprime_posnums = (rowSums(contam_Aprime_posnums))
+contam_Aprime_posnums_nonzeros = names(contam_Aprime_posnums[which(contam_Aprime_posnums!=0)])
+contam_Aprime_posnums_zeros = names(contam_Aprime_posnums[which(contam_Aprime_posnums==0)])
+finalContamAprime = setdiff(contam_Aprime,contam_Aprime_posnums_zeros)
+
+#OUR greedy ASV selection
+InocEqualAbun = otu.relative[,EqualInoc]
+FecalEqualAbun = otu.relative[,FecalInoc]
+
+otherposAbuns = otu.relative[,otherPos]
+
+negAbuns = otu.relative[,controlNeg]
+
+weighmPos = (4*InocEqualAbun + 4*FecalEqualAbun + rowSums(otherposAbuns))/120
+
+mNeg = rowMeans(negAbuns)
+
+#biorelCounts = data.frame(weighmPos*weighmPos/(weighmPos + mNeg))
+
+#biorelCounts = data.frame(weighmPos/mNeg)
+
+biorelCounts = data.frame(weighmPos)
+
+#biorelCounts = data.frame((rowMeans(posAbuns)*rowMeans(posAbuns))/(rowMeans(negAbuns) + rowMeans(posAbuns)))
+
+#biorelCounts = data.frame(rowMeans(posAbuns) - 5*rowMeans(negAbuns))
+
+colnames(biorelCounts) = 'metric'
+biorelCounts = data.frame(biorelCounts)
+
+plotdf = data.frame(c(1:nrow(biorelCounts)),0,0,0,0,0,0,0)
+
+colnames(plotdf) = c('NumASVs','medPos','maxValPos','minValPos','medNeg','maxValNeg','minValNeg','flag')
+
+ASVs_considered = character(length = 0L)
+
+for (i in c(1:nrow(biorelCounts))) {
+  
+  if (max(biorelCounts$metric)==min(biorelCounts$metric)){
+    break
+  }
+  newASVs = rownames(biorelCounts)[which(biorelCounts$metric == max(biorelCounts$metric))]
+  if ('Seq13' %in% newASVs){
+    x = ASVs_considered
+  }
+  
+  if (length(intersect(taxa_final[newASVs,"FinalAssign"],commeq))==0){
+    plotdf[i,'flag'] = 1
+  }
+  
+  ASVs_considered = append(ASVs_considered,newASVs)
+  biorelCounts[newASVs,'metric'] = 0 
+  
+  
+  if (i==1){
+    plotdf[i,'NumASVs'] = length(ASVs_considered)
+    plotdf[i,'medPos'] = median((otu.relative[ASVs_considered,samplePos]))
+    plotdf[i,'maxValPos'] = max((otu.relative[ASVs_considered,samplePos]))
+    plotdf[i,'minValPos'] = min((otu.relative[ASVs_considered,samplePos]))
+    plotdf[i,'medNeg'] = median((otu.relative[ASVs_considered,controlNeg]))
+    plotdf[i,'maxValNeg'] = max((otu.relative[ASVs_considered,controlNeg]))
+    plotdf[i,'minValNeg'] = min((otu.relative[ASVs_considered,controlNeg]))
+  } else {
+    plotdf[i,'NumASVs'] = length(ASVs_considered)
+    plotdf[i,'medPos'] = median(colSums(otu.relative[ASVs_considered,samplePos]))
+    plotdf[i,'maxValPos'] = max(colSums(otu.relative[ASVs_considered,samplePos]))
+    plotdf[i,'minValPos'] = min(colSums(otu.relative[ASVs_considered,samplePos]))
+    plotdf[i,'medNeg'] = median(colSums(otu.relative[ASVs_considered,controlNeg]))
+    plotdf[i,'maxValNeg'] = max(colSums(otu.relative[ASVs_considered,controlNeg]))
+    plotdf[i,'minValNeg'] = min(colSums(otu.relative[ASVs_considered,controlNeg]))
+    if ((plotdf[i,"medNeg"] - plotdf[i-1,"medNeg"]) >0.1){
+      print(paste(newASVs,"Cause more than 0.1 increase in Relative Abundance of Neg Samples"))
+    }
+    if ((plotdf[i,"medPos"] - plotdf[i-1,"medPos"]) >0.1){
+      print(paste(newASVs,"Cause more than 0.1 increase in Relative Abundance of Pos Samples"))
+    }
+    #if (length(ASVs_considered)==117){
+     # Greedy_metric_ASVs_meth1 = ASVs_considered
+    #}
+  }
+  
+  
+}
+medPos0samps = rownames(plotdf[which(plotdf$medPos == 0),])
+
+plotdf = plotdf[setdiff(rownames(plotdf),medPos0samps),]
+
+
+
+#ASVs considered now contains a list of ASVs ordered by their weighmPos value
+
+x = strsplit(commeq,' ')
+GenusAdded = character(length = 105)
+for (i in c(1:105)) {
+  GenusAdded[i] = x[[i]][1]
+}
+
+presentorAbs = double(length = length(ASVs_considered))
+
+for (i in c(1:length(ASVs_considered))) {
+  if (length(intersect(taxa_new[ASVs_considered[i],"Genus"],GenusAdded))==0){
+    print(paste(i,ASVs_considered[i],taxa_new[ASVs_considered[i],"FinalAssign"]))
+    presentorAbs[i] = 1
+  }
+}
+
+
+
+#Some manual manipulation
+presentorAbs[11] = 0
+presentorAbs[12] = 0
+presentorAbs[20] = 0
+presentorAbs[22] = 0
+presentorAbs[33] = 0
+presentorAbs[35] = 0
+presentorAbs[36] = 0
+presentorAbs[37] = 0
+presentorAbs[43] = 0
+presentorAbs[48] = 0
+presentorAbs[49] = 0
+presentorAbs[57] = 0
+presentorAbs[61] = 0
+presentorAbs[62] = 0
+presentorAbs[67] = 0
+presentorAbs[68] = 0 
+presentorAbs[71] = 0 
+presentorAbs[77] = 0 
+presentorAbs[78] = 0 
+presentorAbs[80] = 0 
+presentorAbs[82] = 0 
+presentorAbs[87] = 0
+presentorAbs[89] = 0
+presentorAbs[97] = 0
+presentorAbs[106] = 0
+presentorAbs[108] = 0
+presentorAbs[113] = 0
+presentorAbs[137] = 0
+presentorAbs[149] = 0
+
+
+roc_curve = data.frame(matrix(0,nrow = length(presentorAbs),ncol = 8))
+colnames(roc_curve) = c('n','TPS','FPS','Precision','Recall','TPR','FPR','F1')
+
+
+ground_truth = presentorAbs
+
+ground_truth[ground_truth==1] = 2
+ground_truth[ground_truth==0] = 1
+ground_truth[ground_truth==2] = 0
+
+for (i in c(1:length(presentorAbs))) {
+  roc_curve[i,'n'] = i
+  roc_curve[i,'TPS'] = sum(presentorAbs[1:i] == 0)
+  roc_curve[i,'FPS'] = sum(presentorAbs[1:i] == 1)
+  
+  
+  predicts = c(rep(1,i),rep(0,length(presentorAbs)-i))
+  invpredicts = c(rep(0,i),rep(1,length(presentorAbs)-i))
+  
+  
+  TP = sum(predicts & ground_truth)
+  
+  FP = sum(predicts & presentorAbs)
+  
+  FN = sum(invpredicts & ground_truth)
+  
+  TN = sum(invpredicts & presentorAbs)
+  
+  roc_curve[i,'TPR'] = TP/(TP+FN)
+  roc_curve[i,'FPR'] = FP/(FP+TN)
+  
+  roc_curve[i,'Precision'] = TP/(TP+FP)
+  roc_curve[i,'Recall'] = TP/(TP+FN)
+  
+  roc_curve[i,'F1'] = (2 * roc_curve[i,'Precision'] * roc_curve[i,'Recall']) / (roc_curve[i,'Precision'] + roc_curve[i,'Recall'])
+  
+}
+
+#Choose the 128 , and Figure S1
+ 
+
+ggplot(data = roc_curve, aes(x = n)) + geom_line(aes(y = F1), color = 'blue') + geom_vline(xintercept = 128, colour = 'darkgreen', linetype = 'dashed') + geom_hline(yintercept = 0.91633466, linetype = 'dashed') + geom_text(aes(0, 0.91633466, label = 0.916, vjust = 2, hjust = 0,)) + geom_text(aes(128, 0, label = 128, vjust = 2, hjust = -0.1,)) + theme(aspect.ratio=1) + xlab('Cumulative number of ASVs (n)') + ylab('F1 - Score') + theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 0.3, fill = NA),axis.text=element_text(size=10),axis.title = element_text(size = 12))
+
+
+
+
+
+#FIG S2, compare with Decontam
+ggarrange(AbunExplained(pseq_A,ASVs_considered[1:128],'Max F1 ASVs'),AbunExplained(pseq_A,finalContamAprime,'Decontam'))
+
+
+#FIG S3 venn diagram
+ggvenn(list('Present in Inoculum' = inoc_pres, 'Present in Sample' = samp_pres))
+
+
+```
+
+
+```{r Alpha and Beta Diversity}
+heatmapASVs = ASVs_considered[1:128]
+
+
+#heatmapASVs = finalASVlist
+
+plotpseq = prune_taxa(heatmapASVs,pseq_A)
+
+plotpseq@tax_table@.Data = cbind(plotpseq@tax_table@.Data,taxa_new[rownames(plotpseq@tax_table@.Data),"FinalAssign"])
+
+#EheatmapPlot = otu.relative[heatmapASVs,]
+
+colnames(plotpseq@tax_table)[8] = 'FinalAssign'
+plotpseq@tax_table['Seq34',"FinalAssign"] = 'Family Selenomonadaceae NA'
+plotpseq@tax_table['Seq110',"FinalAssign"] = 'Family Selenomonadaceae NA'
+plotpseq@tax_table['Seq120',"FinalAssign"] = 'Family Selenomonadaceae NA'
+
+
+plotpseq@tax_table['Seq38',"FinalAssign"] = 'Staphylococcus MULSP'
+
+
+for (i in 1:ntaxa(plotpseq)) {
+  if ( is.na(plotpseq@tax_table[i,"Species"])) {
+    if (length(strsplit(plotpseq@tax_table[i,"FinalAssign"],split = " ")[[1]])>=2){
+      if (strsplit(plotpseq@tax_table[i,"FinalAssign"],split = " ")[[1]][length(strsplit(plotpseq@tax_table[i,"FinalAssign"],split = " ")[[1]])] == 'NA'){
+        plotpseq@tax_table[i,"FinalAssign"] = paste0(plotpseq@tax_table[i,"FinalAssign"],i)
+      } 
+    }
+  } 
+}
+
+
+
+plotpseq_glom = tax_glom(plotpseq,taxrank = 'FinalAssign')
+
+plotpseq_glom <- merge_taxa(plotpseq_glom, c('Seq36','Seq51','Seq57'))
+
+plotpseq_glom@tax_table['Seq36',"FinalAssign"] = 'Veillonella parvula'
+
+plotpseq_glom <- merge_taxa(plotpseq_glom, c('Seq73','Seq351'))
+
+plotpseq_glom@tax_table['Seq73',"FinalAssign"] = 'Eubacterium limosum'
+
+
+plotpseq_glom@tax_table['Seq336',"FinalAssign"] = 'Family Enterobacteriaceae'
+
+plotpseq_glom = tax_glom(plotpseq_glom,taxrank = 'FinalAssign')
+
+#Preprocessing for Alpha Doversity
+
+alphDiverA = estimate_richness(plotpseq_glom, measures = c("Shannon",'Observed'))
+
+
+alphDiverA = data.frame(alphDiverA,sample_data(plotpseq_glom)[rownames(alphDiverA),])
+
+
+alphDiverA$Day = as.character(alphDiverA$Day)
+alphDiverA$Day = (factor(alphDiverA$Day,levels =c('Control','Elution_Buffer','BSC','SF','0','1','3','5','7','9','11','13','15','17','19','21','23','25','27')))
+
+
+
+alphDiverA[which(alphDiverA$Compartment_unit=='PC3'),"Compartment_unit"] = 'Equal PC'
+alphDiverA[which(alphDiverA$Compartment_unit=='PC4'),"Compartment_unit"] = 'Fecal PC'
+alphDiverA[which(alphDiverA$Compartment_unit=='DC4'),"Compartment_unit"] = 'Fecal DC'
+alphDiverA[which(alphDiverA$Compartment_unit=='DC3'),"Compartment_unit"] = 'Equal DC'
+
+alphDiverA[which(alphDiverA$Compartment_unit=='PC1'),"Compartment_unit"] = 'Equal PC'
+alphDiverA[which(alphDiverA$Compartment_unit=='PC2'),"Compartment_unit"] = 'Fecal PC'
+alphDiverA[which(alphDiverA$Compartment_unit=='DC2'),"Compartment_unit"] = 'Fecal DC'
+alphDiverA[which(alphDiverA$Compartment_unit=='DC1'),"Compartment_unit"] = 'Equal DC'
+
+alphDiver_controlnegs = alphDiverA[controlNeg,]
+
+alphDiver_controlnegs
+
+
+
+alphDiver_nonc = alphDiverA[setdiff(rownames(alphDiverA),controlNeg),]
+
+
+alphDiver_bsc = alphDiver_nonc[which(alphDiver_nonc$Medium == 'BSC'),]
+
+alphDiver_bsc = rbind(alphDiver_bsc,alphDiverA[c(FecalInoc,EqualInoc),])
+
+alphDiver_SF = alphDiver_nonc[which(alphDiver_nonc$Medium == 'SF'),]
+
+alphDiver_SF = rbind(alphDiver_SF,alphDiverA[c(FecalInoc,EqualInoc),])
+
+
+p_Rich_BSC =  ggplot(alphDiver_bsc, aes(x=Day, y=Observed, color = Compartment, group = Compartment_unit, shape = Community_Type))  +
+  theme_pubr(border = TRUE) + scale_color_manual(values = mycols) +
+  geom_point(size=6) +
+  #scale_shape_manual(values=c(15, 20,18)) +
+  theme(axis.text.x = element_blank(), 
+        axis.text.y = element_blank(),
+        axis.title.x.bottom = element_blank(),
+        axis.title.y = element_blank(),legend.text=element_text(size=15),legend.title = element_text(size = 18)) +
+  #scale_colour_manual(values = cols) + 
+  scale_x_discrete(limits=c(0, 1, " ", 3, " ", 5, " ", 7, " ", 9, " ", 11, " ", 13, " ", 15, " ", 17, " ", 19, " ", 21, " ", 23, " ", 25, " ", 27)) +
+  geom_line(aes(linetype=Compartment_unit))+
+  #scale_linetype_manual(values=c("twodash", "solid", "dashed"))+
+  ylim(0, 100) +
+  labs(hjust = 1, face= "bold", x="Days", y = 'Richness')  +  ylab('Richness') + ggtitle('BSC')
+
+
+legend = get_legend(p_Rich_BSC)
+
+p_Rich_SF =  ggplot(alphDiver_SF, aes(x=Day, y=Observed, color = Compartment, group = Compartment_unit, shape = Community_Type))  +
+  theme_pubr(border = TRUE) + scale_color_manual(values = mycols) +
+  geom_point(size=6) +
+  #scale_shape_manual(values=c(15, 20,18)) +
+  theme(axis.text.x = element_blank(), 
+        axis.text.y =element_text(size = 17, hjust = 1),
+        axis.title.x.bottom = element_blank(),
+        axis.title.y = element_text(size = 18),
+        legend.position = "none") +
+  #scale_colour_manual(values = cols) + 
+  scale_x_discrete(limits=c(0, 1, " ", 3, " ", 5, " ", 7, " ", 9, " ", 11, " ", 13, " ", 15, " ", 17, " ", 19, " ", 21, " ", 23, " ", 25, " ", 27)) +
+  geom_line(aes(linetype=Compartment_unit))+
+  #scale_linetype_manual(values=c("twodash", "solid", "dashed"))+
+  ylim(0, 100) +
+  labs(hjust = 1, face= "bold", x="Days", y = 'Richness') + ggtitle('SF')
+
+p_Sh_BSC =  ggplot(alphDiver_bsc, aes(x=Day, y=Shannon, color = Compartment, group = Compartment_unit, shape = Community_Type))  +
+  theme_pubr(border = TRUE) + scale_color_manual(values = mycols) +
+  geom_point(size=6) +
+  #scale_shape_manual(values=c(15, 20,18)) +
+  theme(axis.text.x = element_text(size = 14, hjust = 0.5), 
+        axis.text.y = element_blank(),
+        axis.title.x.bottom = element_text(size = 18),
+        axis.title.y = element_blank(),
+        legend.position = "none") +
+  #scale_colour_manual(values = cols) + 
+  scale_x_discrete(limits=c(0, 1, " ", 3, " ", 5, " ", 7, " ", 9, " ", 11, " ", 13, " ", 15, " ", 17, " ", 19, " ", 21, " ", 23, " ", 25, " ", 27)) +
+  geom_line(aes(linetype=Compartment_unit))+
+  #scale_linetype_manual(values=c("twodash", "solid", "dashed"))+
+  ylim(0, 4) +
+  labs(hjust = 1, face= "bold", x="Days", y = 'Shannon Diversity') 
+
+
+p_Sh_SF =  ggplot(alphDiver_SF, aes(x=Day, y=Shannon, color = Compartment, group = Compartment_unit, shape = Community_Type))  +
+  theme_pubr(border = TRUE) + scale_color_manual(values = mycols) +
+  geom_point(size=6) +
+  #scale_shape_manual(values=c(15, 20,18)) +
+  theme(axis.text.x = element_text(size = 14, hjust = 0.5), 
+        axis.text.y = element_text(size = 17, hjust = 1),
+        axis.title.x.bottom = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        legend.position = "none") +
+  #scale_colour_manual(values = cols) + 
+  scale_x_discrete(limits=c(0, 1, " ", 3, " ", 5, " ", 7, " ", 9, " ", 11, " ", 13, " ", 15, " ", 17, " ", 19, " ", 21, " ", 23, " ", 25, " ", 27)) +
+  geom_line(aes(linetype=Compartment_unit))+
+  #scale_linetype_manual(values=c("twodash", "solid", "dashed"))+
+  ylim(0, 4) +
+  labs(hjust = 1, face= "bold", x="Days", y = 'Shannon Diversity') 
+
+#Fig S4A
+ggarrange(p_Rich_SF,p_Rich_BSC,p_Sh_SF,p_Sh_BSC,nrow = 2,ncol = 2,common.legend = T,widths = c(2,2))
+
+```
+
+```{r Beta Diversity}
+
+pseq_Beta = subset_samples(plotpseq_glom,is.neg == FALSE)
+
+beta_plot <- transform_sample_counts(pseq_Beta, function(otu) otu/sum(otu))
+ord<- (phyloseq::distance(beta_plot,Type = "samples", "bray"))
+pcoa = ordinate(beta_plot,"PCoA",distance = ord)
+
+
+ordplot_obj = data.frame(pcoa$vectors[,1:2],sample_data(pseq_Beta)[rownames(pcoa$vectors),])
+
+Axis1_lab = 'Axis 1 : 46.2%'
+Axis2_lab = 'Axis 2 : 25.2%'
+
+ordplot_obj[which(ordplot_obj$Compartment_unit=='PC3'),"Compartment_unit"] = 'Equal PC'
+ordplot_obj[which(ordplot_obj$Compartment_unit=='PC4'),"Compartment_unit"] = 'Fecal PC'
+ordplot_obj[which(ordplot_obj$Compartment_unit=='DC4'),"Compartment_unit"] = 'Fecal DC'
+ordplot_obj[which(ordplot_obj$Compartment_unit=='DC3'),"Compartment_unit"] = 'Equal DC'
+
+ordplot_obj[which(ordplot_obj$Compartment_unit=='PC1'),"Compartment_unit"] = 'Equal PC'
+ordplot_obj[which(ordplot_obj$Compartment_unit=='PC2'),"Compartment_unit"] = 'Fecal PC'
+ordplot_obj[which(ordplot_obj$Compartment_unit=='DC2'),"Compartment_unit"] = 'Fecal DC'
+ordplot_obj[which(ordplot_obj$Compartment_unit=='DC1'),"Compartment_unit"] = 'Equal DC'
+
+ordplot_obj[which(ordplot_obj$Compartment_unit=='Inc1'),"Compartment_unit"] = 'Fecal Inoc'
+ordplot_obj[which(ordplot_obj$Compartment_unit=='Inc2'),"Compartment_unit"] = 'Equal Inoc'
+
+
+ordplot_obj$Compartment_unit = as.character(ordplot_obj$Compartment_unit)
+ordplot_obj$Compartment_unit = (factor(ordplot_obj$Compartment_unit,levels =c('Fecal Inoc','Equal Inoc','Fecal PC','Equal PC','Fecal DC','Equal DC')))
+
+
+ordplot_obj[c(EqualInoc,FecalInoc),"Medium"] = 'Inoculum'
+
+ordplot_obj$Medium = as.character(ordplot_obj$Medium)
+ordplot_obj$Medium = (factor(ordplot_obj$Medium,levels =c('BSC','SF','Inoculum')))
+
+ord_plot = ggplot(ordplot_obj,aes(x = Axis.1, y = Axis.2, color=Compartment_unit,shape = Medium)) + 
+  geom_point(size = 8,alpha = 1/3) +
+  #geom_text(show_guide  = FALSE) +
+  scale_shape_manual(values = c(15,16,17,18)) +
+  labs(shape = 'Community Medium') +
+  geom_text_repel(aes(label = Day),show.legend = FALSE) +
+  theme_pubr(border = TRUE) +
+  xlab(Axis1_lab) +
+  ylab(Axis2_lab) +
+  theme(axis.text=element_text(size=14), 
+        axis.text.x = element_text(hjust = 0.5), 
+        axis.title.y = element_text(size = 18),
+        legend.text=element_text(size=14), 
+        legend.title=element_text(size=18),
+        #legend.position="none",
+        axis.title.x = element_text(size = 18), 
+        strip.text.x = element_text(size = 20, face = "bold")) + coord_fixed()
+
+ord_plot
+```
+
+```{r Fig4}
+#A
+ggarrange(bcDistDayPlotInc_comp(plotpseq_glom,'BSC','Equal'),bcDistDayPlotInc_comp(plotpseq_glom,'BSC','Fecal'),bcDistDayPlotInc_comp(plotpseq_glom,'SF','Equal'),bcDistDayPlotInc_comp(plotpseq_glom,'SF','Fecal'),common.legend = T)
+
+#B
+ggarrange(bcDistDayPlotComm_comp(plotpseq_glom,'BSC'),bcDistDayPlotComm_comp(plotpseq_glom,'SF'),common.legend = T)
+```
+
+```{r Fig S5 and S6}
+ggarrange(ssdDistDayPlotInc_comp(plotpseq_glom,'BSC','Equal'),ssdDistDayPlotInc_comp(plotpseq_glom,'BSC','Fecal'),ssdDistDayPlotInc_comp(plotpseq_glom,'SF','Equal'),ssdDistDayPlotInc_comp(plotpseq_glom,'SF','Fecal'),common.legend = T)
+
+ggarrange(ssdDistDayPlotComm_comp(plotpseq_glom,'BSC'),ssdDistDayPlotComm_comp(plotpseq_glom,'SF'))
+```
+
+
+```{r Fig5}
+Theoplot[is.na(Theoplot)] = 0
+
+#Theoplot = Theoplot[-which(rowSums(Theoplot)==0),]
+
+
+
+Theoplotobj = ggplot(Theoplot,aes(x = Equal,y = Fecal, label = rownames(Theoplot))) + geom_point() +
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) + 
+  ggtitle(paste('Theoretical Inoculums (SSD = ',round(sum((log(Theoplot$Equal+ 1.e-06) - log(Theoplot$Fecal+ 1.e-06))**2),1),')')) + 
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed() + theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+
+
+Obsplot[is.na(Obsplot)] = 0
+
+Obsplot = Obsplot[-which(rowSums(Obsplot)==0),]
+
+
+
+Obsplotobj = ggplot(Obsplot,aes(x = Equal,y = Fecal, label = rownames(Obsplot))) + geom_point() +
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) +ggtitle(paste0('Observed Inoculums (SSD = ',round(sum((log(Obsplot$Equal+ 1.e-06) - log(Obsplot$Fecal+ 1.e-06))**2),1),')')) +
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed() + theme_minimal()+ theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+BSC_PC = data.frame(rowMeans(otu.complete[,c('Final.11','Final.100','Final.34')]),rowMeans(otu.complete[,c('Final.57','Final.90','Final.105')]))
+colnames(BSC_PC) = c("Equal",'Fecal')
+rownames(BSC_PC) = plotpseq_glom@tax_table[rownames(BSC_PC),"FinalAssign"]
+
+BSC_PC[is.na(BSC_PC)] = 0
+
+BSC_PC = BSC_PC[-which(rowSums(BSC_PC)==0),]
+
+
+BSC_PC_plotobj = ggplot(BSC_PC,aes(x = Equal,y = Fecal, label = rownames(BSC_PC))) + geom_point() + 
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) + 
+  ggtitle(paste0('BSC PC (SSD = ',round(sum((log(BSC_PC$Equal+ 1.e-06) - log(BSC_PC$Fecal+ 1.e-06))**2),1),')')) + 
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed() + theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+
+
+
+
+SF_PC = data.frame(rowMeans(otu.complete[,c('Final.65','Final.43','Final.25')]),rowMeans(otu.complete[,c('Final.97','Final.46','Final.63')]))
+#data.frame(otu.complete[,'Final.25'],otu.complete[,'Final.63'])
+colnames(SF_PC) = c("Equal",'Fecal')
+rownames(SF_PC) = plotpseq_glom@tax_table[rownames(SF_PC),"FinalAssign"]
+
+SF_PC[is.na(SF_PC)] = 0
+
+SF_PC = SF_PC[-which(rowSums(SF_PC)==0),]
+SF_PC_plotobj = ggplot(SF_PC,aes(x = Equal,y = Fecal, label = rownames(SF_PC))) + geom_point() + 
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) + ggtitle(paste0('SF PC (SSD = ',round(sum((log(SF_PC$Equal+ 1.e-06) - log(SF_PC$Fecal+ 1.e-06))**2),1),')')) + 
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed() + theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+#SF_PC_plotobj
+
+
+
+
+
+BSC_DC = data.frame(rowMeans(otu.complete[,c('Final.41','Final.96','Final.53')]),rowMeans(otu.complete[,c('Final.107','Final.109','Final.14')]))
+  #data.frame(otu.complete[,'Final.53'],otu.complete[,'Final.14'])
+colnames(BSC_DC) = c("Equal",'Fecal')
+rownames(BSC_DC) = plotpseq_glom@tax_table[rownames(BSC_DC),"FinalAssign"]
+BSC_DC[is.na(BSC_DC)] = 0
+
+BSC_DC = BSC_DC[-which(rowSums(BSC_DC)==0),]
+BSC_DC_plotobj = ggplot(BSC_DC,aes(x = Equal,y = Fecal, label = rownames(BSC_DC))) + geom_point() + 
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) +ggtitle(paste0('BSC DC (SSD = ',round(sum((log(BSC_DC$Equal+ 1.e-06) - log(BSC_DC$Fecal+ 1.e-06))**2),2),')'))+ 
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed()+ theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+
+
+SF_DC = data.frame(rowMeans(otu.complete[,c('Final.33','Final.66','Final.18')]),rowMeans(otu.complete[,c('Final.112','Final.4','Final.72')]))
+  #data.frame(otu.complete[,'Final.18'],otu.complete[,'Final.72'])
+colnames(SF_DC) = c("Equal",'Fecal')
+rownames(SF_DC) = plotpseq_glom@tax_table[rownames(SF_DC),"FinalAssign"]
+SF_DC[is.na(SF_DC)] = 0
+
+SF_DC = SF_DC[-which(rowSums(SF_DC)==0),]
+
+
+SF_DC_plotobj = ggplot(SF_DC,aes(x = Equal,y = Fecal, label = rownames(SF_DC))) + geom_point() +
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) + ggtitle(paste0('SF DC (SSD) = ',round(sum((log(SF_DC$Equal+ 1.e-06) - log(SF_DC$Fecal+ 1.e-06))**2),2),')')) + 
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed()+ theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+ggarrange(Theoplotobj,Obsplotobj,BSC_PC_plotobj,BSC_DC_plotobj,SF_PC_plotobj,SF_DC_plotobj,ncol = 2,nrow = 3)
+
+```

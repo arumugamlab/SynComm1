@@ -1,0 +1,115 @@
+---
+title: "preprocessing - SynComm"
+author: "Arjun Sarathi"
+date: "10/20/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = FALSE)
+```
+
+## Preprocessing of reads to a phyloseq Object
+
+
+### Load Libraries
+
+```{r libLoad, message=FALSE, warning=FALSE, paged.print=FALSE}
+library("dada2")
+library("devtools")
+library("dplyr")
+library("ggplot2")
+#library("microbiome")
+#library("phangorn")
+#library("phyloseq")
+library("Rcpp")
+library("reshape2")
+library("tidyr")
+library("vegan")
+library("gtools")
+library("DECIPHER")
+```
+
+### Set Paths
+
+```{r paths}
+setwd("/emc/cbmr/data/microbiome/raw/SHIME/SynthS1/BGI")
+
+#Specify path of reads relative to current wd
+path = "BGI_Result/CleanData"
+
+
+```
+
+### Filter and Trim
+
+```{r filtTrim}
+fnFs = mixedsort(list.files(path, pattern="_1.fq.gz"))
+fnRs = mixedsort(list.files(path, pattern="_2.fq.gz"))
+
+sample.names = sapply(strsplit(fnFs, "_"), `[`, 2)
+show(sample.names)
+
+fnFs = file.path(path, fnFs)
+fnRs = file.path(path, fnRs)
+
+filt_path = file.path(path, "filtered")
+
+filtFs = file.path(filt_path, paste0(sample.names, "_F_filt.fastq"))
+filtRs = file.path(filt_path, paste0(sample.names, "_R_filt.fastq"))
+
+#plotQualityProfile(fnFs[1:2])
+#plotQualityProfile(fnRs[1:2])
+
+#dev.off()
+
+####Filter and Trimming####
+
+#CHECK QUALITY (QUALITY PLOTS)
+out = filterAndTrim(fnFs, filtFs, fnRs, filtRs, maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE, compress=TRUE, multithread=16)
+head(out)
+```
+
+
+### Learn Errors and Remove Bimeras, and Assign Taxonomy
+
+
+```{r ErrBim}
+
+errF = learnErrors(filtFs, nbases = 1e8, multithread=16, randomize=TRUE, MAX_CONSIST=15)
+errR = learnErrors(filtRs, nbases = 1e8, multithread=16, randomize=TRUE, MAX_CONSIST=15)
+mergers = vector("list", length(sample.names))
+names(mergers) = sample.names
+names(filtFs) = sample.names
+names(filtRs) = sample.names
+plotErrors(errF, nominalQ=TRUE)
+for(sam in sample.names) {
+  cat("Processing:", sam, "\n")
+  derepF = derepFastq(filtFs[[sam]])
+  ddF = dada(derepF, err=errF, multithread=16)
+  derepR = derepFastq(filtRs[[sam]])
+  ddR = dada(derepR, err=errR, multithread=16)
+  merger = mergePairs(ddF, derepF, ddR, derepR)
+  mergers[[sam]] = merger
+}
+rm(derepF); rm(derepR)
+seqtab = makeSequenceTable(mergers)
+
+seqtab.nochim = removeBimeraDenovo(seqtab, method="consensus", verbose=TRUE)
+#Identified 856 bimeras out of 1345 input sequences.
+
+
+##Assign Taxonomy using SILVA
+# link for database https://zenodo.org/record/4587955#.YYkA_GDMIuV
+
+taxa <- assignTaxonomy(seqtab.nochim, "SILVA/silva_nr99_v138.1_train_set.fa.gz", multithread=16)
+taxa <- addSpecies(taxa, allowMultiple = TRUE, "SILVA/silva_species_assignment_v138.1.fa.gz")
+```
+
+### Save this processed data as a phyloseq, which we will load in the next markdown
+
+
+
+
+
+

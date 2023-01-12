@@ -1,0 +1,14 @@
+# History files
+.Rhistory
+.Rapp.history
+
+
+
+
+# RStudio files
+.Rproj.user/
+.Rproj
+SynComm1.Rproj
+analysis.html
+std.pdf
+.RData
