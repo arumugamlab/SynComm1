@@ -13,5 +13,7 @@ stateDiagram-v2
   [*] --> helper.R
   preProc.Rmd --> helper.R
   helper.R --> analysis.Rmd
+  analysis.Rmd --> copyNumberCorrection.R
+  copyNumberCorrection.R --> analysis.Rmd
   analysis.Rmd --> [*]
 ```

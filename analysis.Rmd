@@ -425,7 +425,7 @@ ggvenn(list('Present in Inoculum' = inoc_pres, 'Present in Sample' = samp_pres))
 ```
 
 
-```{r Alpha and Beta Diversity}
+```{r Preprocessing and copy number stuff}
 heatmapASVs = ASVs_considered[1:128]
 
 
@@ -473,12 +473,41 @@ plotpseq_glom@tax_table['Seq336',"FinalAssign"] = 'Family Enterobacteriaceae'
 
 plotpseq_glom = tax_glom(plotpseq_glom,taxrank = 'FinalAssign')
 
+
+
+# Run this file   source('copyNumberCorrection.R')
+
+#correct for copy numbers in plotpseq_glom
+
+
+
+
+
+
+
+plotpseq_cpnr = plotpseq_glom
+
+for (i in colnames(plotpseq_cpnr@otu_table)) {
+  plotpseq_cpnr@otu_table[,i] = plotpseq_glom@otu_table[,i]/taxwcpnrs[i,'cpnr']
+}
+
+#round the counts to nearest integer
+
+plotpseq_cpnr@otu_table = round(plotpseq_cpnr@otu_table)
+
+
+```
+
+
+```{r Alpha and Beta Diversity}
+
+
 #Preprocessing for Alpha Doversity
 
-alphDiverA = estimate_richness(plotpseq_glom, measures = c("Shannon",'Observed'))
+alphDiverA = estimate_richness(plotpseq_cpnr, measures = c("Shannon",'Observed'))
 
 
-alphDiverA = data.frame(alphDiverA,sample_data(plotpseq_glom)[rownames(alphDiverA),])
+alphDiverA = data.frame(alphDiverA,sample_data(plotpseq_cpnr)[rownames(alphDiverA),])
 
 
 alphDiverA$Day = as.character(alphDiverA$Day)
@@ -515,7 +544,8 @@ alphDiver_SF = rbind(alphDiver_SF,alphDiverA[c(FecalInoc,EqualInoc),])
 
 
 p_Rich_BSC =  ggplot(alphDiver_bsc, aes(x=Day, y=Observed, color = Compartment, group = Compartment_unit, shape = Community_Type))  +
-  theme_pubr(border = TRUE) + scale_color_manual(values = mycols) +
+  #theme_pubr(border = TRUE) + 
+  scale_color_manual(values = mycols) +
   geom_point(size=6) +
   #scale_shape_manual(values=c(15, 20,18)) +
   theme(axis.text.x = element_blank(), 
@@ -533,7 +563,8 @@ p_Rich_BSC =  ggplot(alphDiver_bsc, aes(x=Day, y=Observed, color = Compartment, 
 legend = get_legend(p_Rich_BSC)
 
 p_Rich_SF =  ggplot(alphDiver_SF, aes(x=Day, y=Observed, color = Compartment, group = Compartment_unit, shape = Community_Type))  +
-  theme_pubr(border = TRUE) + scale_color_manual(values = mycols) +
+  #theme_pubr(border = TRUE) + 
+  scale_color_manual(values = mycols) +
   geom_point(size=6) +
   #scale_shape_manual(values=c(15, 20,18)) +
   theme(axis.text.x = element_blank(), 
@@ -588,7 +619,7 @@ ggarrange(p_Rich_SF,p_Rich_BSC,p_Sh_SF,p_Sh_BSC,nrow = 2,ncol = 2,common.legend 
 
 ```{r Beta Diversity}
 
-pseq_Beta = subset_samples(plotpseq_glom,is.neg == FALSE)
+pseq_Beta = subset_samples(plotpseq_cpnr,is.neg == FALSE)
 
 beta_plot <- transform_sample_counts(pseq_Beta, function(otu) otu/sum(otu))
 ord<- (phyloseq::distance(beta_plot,Type = "samples", "bray"))
@@ -597,8 +628,8 @@ pcoa = ordinate(beta_plot,"PCoA",distance = ord)
 
 ordplot_obj = data.frame(pcoa$vectors[,1:2],sample_data(pseq_Beta)[rownames(pcoa$vectors),])
 
-Axis1_lab = 'Axis 1 : 46.2%'
-Axis2_lab = 'Axis 2 : 25.2%'
+Axis1_lab = 'Axis 1 : 51.1%'
+Axis2_lab = 'Axis 2 : 19.7%'
 
 ordplot_obj[which(ordplot_obj$Compartment_unit=='PC3'),"Compartment_unit"] = 'Equal PC'
 ordplot_obj[which(ordplot_obj$Compartment_unit=='PC4'),"Compartment_unit"] = 'Fecal PC'
@@ -629,7 +660,7 @@ ord_plot = ggplot(ordplot_obj,aes(x = Axis.1, y = Axis.2, color=Compartment_unit
   scale_shape_manual(values = c(15,16,17,18)) +
   labs(shape = 'Community Medium') +
   geom_text_repel(aes(label = Day),show.legend = FALSE) +
-  theme_pubr(border = TRUE) +
+  #theme_pubr(border = TRUE) +
   xlab(Axis1_lab) +
   ylab(Axis2_lab) +
   theme(axis.text=element_text(size=14), 
@@ -644,48 +675,75 @@ ord_plot = ggplot(ordplot_obj,aes(x = Axis.1, y = Axis.2, color=Compartment_unit
 ord_plot
 ```
 
-```{r Fig4}
+```{r Fig2}
 #A
-ggarrange(bcDistDayPlotInc_comp(plotpseq_glom,'BSC','Equal'),bcDistDayPlotInc_comp(plotpseq_glom,'BSC','Fecal'),bcDistDayPlotInc_comp(plotpseq_glom,'SF','Equal'),bcDistDayPlotInc_comp(plotpseq_glom,'SF','Fecal'),common.legend = T)
+ggarrange(bcDistDayPlotInc_comp(plotpseq_cpnr,'BSC','Equal'),bcDistDayPlotInc_comp(plotpseq_cpnr,'BSC','Fecal'),bcDistDayPlotInc_comp(plotpseq_cpnr,'SF','Equal'),bcDistDayPlotInc_comp(plotpseq_cpnr,'SF','Fecal'),common.legend = T)
 
 #B
-ggarrange(bcDistDayPlotComm_comp(plotpseq_glom,'BSC'),bcDistDayPlotComm_comp(plotpseq_glom,'SF'),common.legend = T)
+ggarrange(bcDistDayPlotComm_comp(plotpseq_cpnr,'BSC'),bcDistDayPlotComm_comp(plotpseq_cpnr,'SF'),common.legend = T)
 ```
 
 ```{r Fig S5 and S6}
-ggarrange(ssdDistDayPlotInc_comp(plotpseq_glom,'BSC','Equal'),ssdDistDayPlotInc_comp(plotpseq_glom,'BSC','Fecal'),ssdDistDayPlotInc_comp(plotpseq_glom,'SF','Equal'),ssdDistDayPlotInc_comp(plotpseq_glom,'SF','Fecal'),common.legend = T)
+ggarrange(ssdDistDayPlotInc_comp(plotpseq_cpnr,'BSC','Equal'),ssdDistDayPlotInc_comp(plotpseq_cpnr,'BSC','Fecal'),ssdDistDayPlotInc_comp(plotpseq_cpnr,'SF','Equal'),ssdDistDayPlotInc_comp(plotpseq_cpnr,'SF','Fecal'),common.legend = T)
 
-ggarrange(ssdDistDayPlotComm_comp(plotpseq_glom,'BSC'),ssdDistDayPlotComm_comp(plotpseq_glom,'SF'))
+ggarrange(ssdDistDayPlotComm_comp(plotpseq_cpnr,'BSC'),ssdDistDayPlotComm_comp(plotpseq_cpnr,'SF'))
 ```
 
 
-```{r Fig5}
+```{r Fig3}
+
+
+
+####FIX THIS
+
+
+otu.complete = abundances(plotpseq_cpnr,'compositional')
+
 Theoplot[is.na(Theoplot)] = 0
 
 #Theoplot = Theoplot[-which(rowSums(Theoplot)==0),]
 
 
+Theoplot_new = Theoplot
 
-Theoplotobj = ggplot(Theoplot,aes(x = Equal,y = Fecal, label = rownames(Theoplot))) + geom_point() +
+Theoplot_new$Equal = Theoplot$Equal/copynrs16s[rownames(Theoplot),2]
+Theoplot_new$Fecal = Theoplot$Fecal/copynrs16s[rownames(Theoplot),2]
+
+Theoplot_new$Equal = Theoplot_new$Equal/sum(Theoplot_new$Equal)
+Theoplot_new$Fecal = Theoplot_new$Fecal/sum(Theoplot_new$Fecal)
+
+Theoplotobj = ggplot(Theoplot_new,aes(x = Equal,y = Fecal, label = rownames(Theoplot_new))) + geom_point() +
   geom_abline(slope = 1,linetype = 'dotted',size =0.2) + 
-  ggtitle(paste('Theoretical Inoculums (SSD = ',round(sum((log(Theoplot$Equal+ 1.e-06) - log(Theoplot$Fecal+ 1.e-06))**2),1),')')) + 
+  ggtitle(paste('Theoretical Inoculums (SSD = ',round(sum((log(Theoplot_new$Equal+ 1.e-06) - log(Theoplot_new$Fecal+ 1.e-06))**2),1),')')) + 
   scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed() + theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
 
 
 
-Obsplot[is.na(Obsplot)] = 0
+#Obsplot[is.na(Obsplot)] = 0
 
-Obsplot = Obsplot[-which(rowSums(Obsplot)==0),]
+#Obsplot = Obsplot[-which(rowSums(Obsplot)==0),]
+
+Obsplot_new = otu.complete[,c('Final.114','Final.113')]
+colnames(Obsplot_new) = c('Equal','Fecal')
+Obsplot_new = data.frame(Obsplot_new)
+rownames(Obsplot_new) = plotpseq_cpnr@tax_table[rownames(Obsplot_new),"FinalAssign"]
 
 
+Obsplot_new = Obsplot_new[intersect(rownames(Obsplot_new),rownames(Theoplot_new)),]
+Obsplot_new$Equal = Obsplot_new$Equal/sum(Obsplot_new$Equal)
+Obsplot_new$Fecal = Obsplot_new$Fecal/sum(Obsplot_new$Fecal)
 
-Obsplotobj = ggplot(Obsplot,aes(x = Equal,y = Fecal, label = rownames(Obsplot))) + geom_point() +
-  geom_abline(slope = 1,linetype = 'dotted',size =0.2) +ggtitle(paste0('Observed Inoculums (SSD = ',round(sum((log(Obsplot$Equal+ 1.e-06) - log(Obsplot$Fecal+ 1.e-06))**2),1),')')) +
+Obsplotobj = ggplot(Obsplot_new,aes(x = Equal,y = Fecal, label = rownames(Obsplot_new))) + geom_point() +
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) +ggtitle(paste0('Observed Inoculums (SSD = ',round(sum((log(Obsplot_new$Equal+ 1.e-06) - log(Obsplot_new$Fecal+ 1.e-06))**2),1),')')) +
   scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed() + theme_minimal()+ theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+
+
+
 
 BSC_PC = data.frame(rowMeans(otu.complete[,c('Final.11','Final.100','Final.34')]),rowMeans(otu.complete[,c('Final.57','Final.90','Final.105')]))
 colnames(BSC_PC) = c("Equal",'Fecal')
-rownames(BSC_PC) = plotpseq_glom@tax_table[rownames(BSC_PC),"FinalAssign"]
+rownames(BSC_PC) = plotpseq_cpnr@tax_table[rownames(BSC_PC),"FinalAssign"]
 
 BSC_PC[is.na(BSC_PC)] = 0
 
@@ -704,7 +762,7 @@ BSC_PC_plotobj = ggplot(BSC_PC,aes(x = Equal,y = Fecal, label = rownames(BSC_PC)
 SF_PC = data.frame(rowMeans(otu.complete[,c('Final.65','Final.43','Final.25')]),rowMeans(otu.complete[,c('Final.97','Final.46','Final.63')]))
 #data.frame(otu.complete[,'Final.25'],otu.complete[,'Final.63'])
 colnames(SF_PC) = c("Equal",'Fecal')
-rownames(SF_PC) = plotpseq_glom@tax_table[rownames(SF_PC),"FinalAssign"]
+rownames(SF_PC) = plotpseq_cpnr@tax_table[rownames(SF_PC),"FinalAssign"]
 
 SF_PC[is.na(SF_PC)] = 0
 
@@ -722,7 +780,7 @@ SF_PC_plotobj = ggplot(SF_PC,aes(x = Equal,y = Fecal, label = rownames(SF_PC))) 
 BSC_DC = data.frame(rowMeans(otu.complete[,c('Final.41','Final.96','Final.53')]),rowMeans(otu.complete[,c('Final.107','Final.109','Final.14')]))
   #data.frame(otu.complete[,'Final.53'],otu.complete[,'Final.14'])
 colnames(BSC_DC) = c("Equal",'Fecal')
-rownames(BSC_DC) = plotpseq_glom@tax_table[rownames(BSC_DC),"FinalAssign"]
+rownames(BSC_DC) = plotpseq_cpnr@tax_table[rownames(BSC_DC),"FinalAssign"]
 BSC_DC[is.na(BSC_DC)] = 0
 
 BSC_DC = BSC_DC[-which(rowSums(BSC_DC)==0),]
@@ -735,16 +793,94 @@ BSC_DC_plotobj = ggplot(BSC_DC,aes(x = Equal,y = Fecal, label = rownames(BSC_DC)
 SF_DC = data.frame(rowMeans(otu.complete[,c('Final.33','Final.66','Final.18')]),rowMeans(otu.complete[,c('Final.112','Final.4','Final.72')]))
   #data.frame(otu.complete[,'Final.18'],otu.complete[,'Final.72'])
 colnames(SF_DC) = c("Equal",'Fecal')
-rownames(SF_DC) = plotpseq_glom@tax_table[rownames(SF_DC),"FinalAssign"]
+rownames(SF_DC) = plotpseq_cpnr@tax_table[rownames(SF_DC),"FinalAssign"]
 SF_DC[is.na(SF_DC)] = 0
 
 SF_DC = SF_DC[-which(rowSums(SF_DC)==0),]
 
 
 SF_DC_plotobj = ggplot(SF_DC,aes(x = Equal,y = Fecal, label = rownames(SF_DC))) + geom_point() +
-  geom_abline(slope = 1,linetype = 'dotted',size =0.2) + ggtitle(paste0('SF DC (SSD) = ',round(sum((log(SF_DC$Equal+ 1.e-06) - log(SF_DC$Fecal+ 1.e-06))**2),2),')')) + 
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) + ggtitle(paste0('SF DC (SSD = ',round(sum((log(SF_DC$Equal+ 1.e-06) - log(SF_DC$Fecal+ 1.e-06))**2),2),')')) + 
   scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed()+ theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
 
 ggarrange(Theoplotobj,Obsplotobj,BSC_PC_plotobj,BSC_DC_plotobj,SF_PC_plotobj,SF_DC_plotobj,ncol = 2,nrow = 3)
 
 ```
+
+
+
+```{r Late days}
+
+
+samdat = pseq@sam_data
+
+samdat = samdat[which(samdat$Syn == 'Syn1'),]
+
+
+BSC_PC = data.frame(rowMeans(otu.complete[,rownames(samdat[which(samdat$Compartment == 'PC' & samdat$Medium == 'BSC' & samdat$Community_Type == 'Equal' & samdat$Day > 3)])]),rowMeans(otu.complete[,rownames(samdat[which(samdat$Compartment == 'PC' & samdat$Medium == 'BSC' & samdat$Community_Type == 'Fecal' & samdat$Day > 3)])]))
+colnames(BSC_PC) = c("Equal",'Fecal')
+rownames(BSC_PC) = plotpseq_cpnr@tax_table[rownames(BSC_PC),"FinalAssign"]
+
+BSC_PC[is.na(BSC_PC)] = 0
+
+BSC_PC = BSC_PC[-which(rowSums(BSC_PC)==0),]
+
+
+BSC_PC_plotobj = ggplot(BSC_PC,aes(x = Equal,y = Fecal, label = rownames(BSC_PC))) + geom_point() + 
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) + 
+  ggtitle(paste0('BSC PC (SSD = ',round(sum((log(BSC_PC$Equal+ 1.e-06) - log(BSC_PC$Fecal+ 1.e-06))**2),1),')')) + 
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed() + theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+
+
+
+
+SF_PC = data.frame(rowMeans(otu.complete[,rownames(samdat[which(samdat$Compartment == 'PC' & samdat$Medium == 'SF' & samdat$Community_Type == 'Equal' & samdat$Day > 3)])]),rowMeans(otu.complete[,rownames(samdat[which(samdat$Compartment == 'PC' & samdat$Medium == 'SF' & samdat$Community_Type == 'Fecal' & samdat$Day > 3)])]))
+#data.frame(otu.complete[,'Final.25'],otu.complete[,'Final.63'])
+colnames(SF_PC) = c("Equal",'Fecal')
+rownames(SF_PC) = plotpseq_cpnr@tax_table[rownames(SF_PC),"FinalAssign"]
+
+SF_PC[is.na(SF_PC)] = 0
+
+SF_PC = SF_PC[-which(rowSums(SF_PC)==0),]
+SF_PC_plotobj = ggplot(SF_PC,aes(x = Equal,y = Fecal, label = rownames(SF_PC))) + geom_point() + 
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) + ggtitle(paste0('SF PC (SSD = ',round(sum((log(SF_PC$Equal+ 1.e-06) - log(SF_PC$Fecal+ 1.e-06))**2),1),')')) + 
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed() + theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+#SF_PC_plotobj
+
+
+
+
+
+BSC_DC = data.frame(rowMeans(otu.complete[,rownames(samdat[which(samdat$Compartment == 'DC' & samdat$Medium == 'BSC' & samdat$Community_Type == 'Equal' & samdat$Day > 3)])]),rowMeans(otu.complete[,rownames(samdat[which(samdat$Compartment == 'DC' & samdat$Medium == 'BSC' & samdat$Community_Type == 'Fecal' & samdat$Day > 3)])]))
+  #data.frame(otu.complete[,'Final.53'],otu.complete[,'Final.14'])
+colnames(BSC_DC) = c("Equal",'Fecal')
+rownames(BSC_DC) = plotpseq_cpnr@tax_table[rownames(BSC_DC),"FinalAssign"]
+BSC_DC[is.na(BSC_DC)] = 0
+
+BSC_DC = BSC_DC[-which(rowSums(BSC_DC)==0),]
+BSC_DC_plotobj = ggplot(BSC_DC,aes(x = Equal,y = Fecal, label = rownames(BSC_DC))) + geom_point() + 
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) +ggtitle(paste0('BSC DC (SSD = ',round(sum((log(BSC_DC$Equal+ 1.e-06) - log(BSC_DC$Fecal+ 1.e-06))**2),2),')'))+ 
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed()+ theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+
+
+SF_DC = data.frame(rowMeans(otu.complete[,rownames(samdat[which(samdat$Compartment == 'DC' & samdat$Medium == 'SF' & samdat$Community_Type == 'Equal' & samdat$Day > 3)])]),rowMeans(otu.complete[,rownames(samdat[which(samdat$Compartment == 'DC' & samdat$Medium == 'SF' & samdat$Community_Type == 'Fecal' & samdat$Day > 3)])]))
+  #data.frame(otu.complete[,'Final.18'],otu.complete[,'Final.72'])
+colnames(SF_DC) = c("Equal",'Fecal')
+rownames(SF_DC) = plotpseq_cpnr@tax_table[rownames(SF_DC),"FinalAssign"]
+SF_DC[is.na(SF_DC)] = 0
+
+SF_DC = SF_DC[-which(rowSums(SF_DC)==0),]
+
+
+SF_DC_plotobj = ggplot(SF_DC,aes(x = Equal,y = Fecal, label = rownames(SF_DC))) + geom_point() +
+  geom_abline(slope = 1,linetype = 'dotted',size =0.2) + ggtitle(paste0('SF DC (SSD = ',round(sum((log(SF_DC$Equal+ 1.e-06) - log(SF_DC$Fecal+ 1.e-06))**2),2),')')) + 
+  scale_x_log10(limits=c(0.00001,0.4)) + scale_y_log10(limits=c(0.00001,0.4)) + coord_fixed()+ theme_minimal() + theme(panel.border = element_rect(colour = 'black',size = 1, fill = NA))
+
+
+ggarrange(BSC_PC_plotobj,BSC_DC_plotobj,SF_PC_plotobj,SF_DC_plotobj,ncol = 2,nrow = 2)
+
+```
+

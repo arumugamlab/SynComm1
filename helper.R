@@ -117,13 +117,13 @@ bcDistDayPlotInc_comp <- function(pseq_A,Medium,Inoc){
   
   plotobj = ggplot(distdf) + geom_point(aes(x = Days, y = Distance_PC,color = 'PC')) + geom_point(aes(x = Days, y = Distance_DC,color = 'DC')) + 
     geom_smooth(aes(x = Days, y = Distance_PC,color = 'PC'),se = FALSE) + geom_smooth(aes(x = Days, y = Distance_DC,color = 'DC'),se = FALSE) + 
-    ggtitle(paste(Inoc,'Inoculum in',Medium,'Medium')) + ylim(0,1) + theme(aspect.ratio=1) + scale_x_discrete(limits = seq(3, 27, 2)) + theme_classic() +
-    scale_colour_manual(name = 'Compartment',values =c('PC'= PC_col,'DC'=DC_col), labels = c('PC','DC')) + ylab("Bray-Curtis dissimilarity") + xlab('Day')
+    ggtitle(paste(Inoc,'Inoculum in',Medium,'Medium')) + ylim(0,1) + theme(aspect.ratio=1) + scale_x_discrete(limits = seq(3, 27, 2),labels = c('D1-D3','D3-D5','D5-D7','D7-D9','D9-D11','D11-D13','D13-D15','D15-D17','D17-D19','D19-D21','D21-D23','D23-D25','D25-D27'), guide = guide_axis(angle = 45)) + theme_classic() +
+    scale_colour_manual(name = 'Compartment',values =c('PC'= PC_col,'DC'=DC_col), labels = c('PC','DC')) + ylab("Bray-Curtis dissimilarity") + xlab('Interval')
   
   return(plotobj)
 }
 
-bcDistDayPlotComm_comp  <- function(pseq_A,Medium){
+function(pseq_A,Medium){
   
   pseq_Beta = subset_samples(pseq_A,is.neg == FALSE)
   beta_plot <- transform_sample_counts(pseq_Beta, function(otu) otu/sum(otu))
@@ -146,7 +146,7 @@ bcDistDayPlotComm_comp  <- function(pseq_A,Medium){
   EqrelDat = relSampDat[which(relSampDat$Community_Type == 'Equal'),]
   FecrelDat = relSampDat[which(relSampDat$Community_Type == 'Fecal'),]
   
-  distdf = data.frame(c(1,3,5,7,9,11,13,15,17,19,21,23,25,27),0,0)
+  distdf = data.frame(seq(1, 27, 2),0,0)
   
   colnames(distdf) = c('Days','Distance_PC','Distance_DC')
   
@@ -167,13 +167,12 @@ bcDistDayPlotComm_comp  <- function(pseq_A,Medium){
     
   }
   
-  distdf = rbind(c(0,0.4450767,0.4450767),distdf)
-
+  
   plotobj = ggplot(distdf) + geom_point(aes(x = Days, y = Distance_PC,color = 'PC'), size = 0.75)+ geom_point(aes(x = Days, y = Distance_DC,color = 'DC'), size = 0.75) +
     geom_smooth(aes(x = Days, y = Distance_PC,color = 'PC'),se = FALSE, size = 0.5) + geom_smooth(aes(x = Days, y = Distance_DC,color = 'DC'),se = FALSE, size = 0.5) +
-    ggtitle(paste(Medium,"Medium")) + geom_hline(yintercept = 0.6045086,color = 'grey', linetype = 'dashed',size = 0.2) +
-    geom_text(aes( 0, 0.6045086, label = 'Theoretical Inoculums', vjust = -1, hjust = -1), size = 2,check_overlap = T)  +
-    ylim(0,0.75) + theme(aspect.ratio = 1) + theme_classic() + scale_x_discrete(limits = c(0,1,3,5,7,9,11,13,15,17,19,21,23,25,27)) +
+    ggtitle(paste(Medium,"Medium")) + geom_hline(yintercept = 0.6045086,color = 'grey', linetype = 'dashed',size = 0.2) + geom_hline(yintercept = 0.4450767,color = 'grey', linetype = 'dashed', size = 0.2) +
+    geom_text(aes( 0, 0.6045086, label = 'Theoretical Inoculums', vjust = -1, hjust = -1), size = 2) + geom_text(aes( 0, 0.4450767, label = 'Observed Inoculums', vjust = -1, hjust = -1), size = 2) +
+    ylim(0,0.75) + theme(aspect.ratio = 1) + theme_classic() + scale_x_discrete(limits = seq(1,27,2)) +
     scale_colour_manual(name = 'Compartment',values =c('PC'= PC_col,'DC'=DC_col), labels = c('PC','DC')) + ylab("Bray-Curtis dissimilarity") + xlab('Day') +
     theme(plot.title = element_text(size = 7, face = "bold"),axis.text=element_text(size=5),axis.title=element_text(size=6), legend.title = element_text(size = 6), legend.text = element_text(size = 4))
   return(plotobj)
@@ -215,15 +214,17 @@ ssdDistDayPlotComm_comp <- function(pseq_A,Medium){
     
   }
   
-  distdf = rbind(c(0,1041,1041),distdf)
+  #distdf = rbind(c(0,1041,1041),distdf)
   
   plotobj = ggplot(distdf) + geom_point(aes(x = Days, y = SSD_PC,color = 'PC'), size = 0.75)+ geom_point(aes(x = Days, y = SSD_DC,color = 'DC'), size = 0.75) +
     geom_smooth(aes(x = Days, y = SSD_PC,color = 'PC'),se = FALSE, size = 0.5) + geom_smooth(aes(x = Days, y = SSD_DC,color = 'DC'),se = FALSE, size = 0.5) +
-    ggtitle(paste(Medium,"Medium")) + geom_hline(yintercept = 1284.2,color = 'grey', linetype = 'dashed', size = 0.2) +
-    geom_text(aes( 0, 1284.2, label = 'Theoretical Inoculums', vjust = -1, hjust = -1), size = 1.7,check_overlap = T) + 
-    theme(aspect.ratio = 1) + theme_classic() + scale_x_discrete(limits = c(0,seq(1,27,2))) +
+    ggtitle(paste(Medium,"Medium")) + geom_hline(yintercept = 1318.4,color = 'grey', linetype = 'dashed', size = 0.2) +
+    geom_text(aes( 0, 1302.4, label = 'Observed Inoculums', vjust = 1, hjust = -1), size = 3,check_overlap = T) +
+    geom_hline(yintercept = 1302.4,color = 'grey', linetype = 'dashed', size = 0.2) +
+    geom_text(aes( 0, 1318.4, label = 'Theoretical Inoculums', vjust = -1, hjust = -1), size = 3,check_overlap = T) +
+    theme(aspect.ratio = 1) + theme_classic() + scale_x_discrete(limits = c(seq(1,27,2))) +
     scale_colour_manual(name = 'Compartment',values =c('PC'= PC_col,'DC'=DC_col), labels = c('PC','DC')) + ylab("SSD") + xlab('Day') +
-    theme(plot.title = element_text(size = 7, face = "bold"),axis.text=element_text(size=5),axis.title=element_text(size=6), legend.title = element_text(size = 6), legend.text = element_text(size = 4))
+    theme(plot.title = element_text(size = 14, face = "bold"),axis.text=element_text(size=9),axis.title=element_text(size=10), legend.title = element_text(size = 12), legend.text = element_text(size = 10))
   return(plotobj)
 }
 
@@ -267,7 +268,7 @@ ssdDistDayPlotInc_comp <- function(pseq_A,Medium,Inoc){
   
   plotobj = ggplot(distdf) + geom_point(aes(x = Days, y = SSD_PC,color = 'PC')) + geom_point(aes(x = Days, y = SSD_DC,color = 'DC')) + 
     geom_smooth(aes(x = Days, y = SSD_PC,color = 'PC'),se = FALSE) + geom_smooth(aes(x = Days, y = SSD_DC,color = 'DC'),se = FALSE) + 
-    ggtitle(paste(Inoc,'Inoculum in',Medium,'Medium')) + scale_x_discrete(limits = seq(3, 27, 2)) + theme_classic() +
+    ggtitle(paste(Inoc,'Inoculum in',Medium,'Medium')) + scale_x_discrete(limits = seq(3, 27, 2),labels = c('D1-D3','D3-D5','D5-D7','D7-D9','D9-D11','D11-D13','D13-D15','D15-D17','D17-D19','D19-D21','D21-D23','D23-D25','D25-D27'), guide = guide_axis(angle = 45)) + theme_classic() +
     scale_colour_manual(name = 'Compartment',values =c('PC'= PC_col,'DC'=DC_col), labels = c('PC','DC')) + ylab("SSD") + xlab('Day') + theme(aspect.ratio = 1)
   
   return(plotobj)
